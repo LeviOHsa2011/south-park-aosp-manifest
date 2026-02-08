@@ -1,28 +1,51 @@
-name: South Park Build 11-10
+name: South Park AOSP Build 11-10
 on: [workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    # Wir geben dem Build mehr Power
+    timeout-minutes: 360 
+
     steps:
-      - name: Checkout
+      - name: Checkout dein Repo
         uses: actions/checkout@v4
 
-      - name: Setup Tools
+      - name: Install Build Dependencies
         run: |
-          sudo apt update && sudo apt install -y git-core python3 curl
+          sudo apt update
+          sudo apt install -y bc build-essential zip curl libstdc++6 git python3 python-is-python3 libssl-dev libncurses5-dev x11proto-core-dev libx11-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig
+
+      - name: Install Repo Tool
+        run: |
           mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
+          echo "PATH=$PATH:$HOME/bin" >> $GITHUB_ENV
 
-      - name: Sync AOSP
+      - name: Sync Full AOSP (Android 14)
         run: |
-          export PATH=$PATH:~/bin
+          export PATH=$PATH:$HOME/bin
           repo init -u https://android.googlesource.com/platform/manifest -b android-14.0.0_r1 --depth=1
+          # Wir laden nur das Nötigste für den ersten Build
           repo sync -c -j$(nproc --all) --no-clone-bundle --no-tags --optimized-fetch --prune
 
-      - name: Inject South Park DNA
+      - name: Inject South Park UI
         run: |
-          echo "Kopiere Custom Overlays..."
-          mkdir -p ~/south-park-aosp/vendor/extra/overlays/
-          cp -r assets/overlays/SouthParkTheme ~/south-park-aosp/vendor/extra/overlays/
+          # Kopiere deine Farben und Assets in den Quellcode
+          mkdir -p vendor/southpark/assets
+          cp -r assets/* vendor/southpark/assets/ || echo "Keine Assets zum Kopieren gefunden"
+
+      - name: Compile System Image
+        run: |
+          export PATH=$PATH:$HOME/bin
+          source build/envsetup.sh
+          # aosp_arm64-eng ist das Standard-Ziel für moderne Handys/Emulator
+          lunch aosp_arm64-eng
+          make systemimage -j$(nproc --all)
+
+      - name: Upload Finished Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: South-Park-OS-Image
+          path: out/target/product/generic_arm64/system.img
