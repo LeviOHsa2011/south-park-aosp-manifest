@@ -1,21 +1,28 @@
 name: South Park Build 11-10
 on: [workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Tools
         run: |
           sudo apt update && sudo apt install -y git-core python3 curl
-          mkdir ~/bin
+          mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
+
       - name: Sync AOSP
         run: |
           export PATH=$PATH:~/bin
           repo init -u https://android.googlesource.com/platform/manifest -b android-14.0.0_r1 --depth=1
           repo sync -c -j$(nproc --all) --no-clone-bundle --no-tags --optimized-fetch --prune
-      - name: Build Info
-        run: echo "AOSP Sync complete. Next step: South Park UI Injection."
+
+      - name: Inject South Park DNA
+        run: |
+          echo "Kopiere Custom Overlays..."
+          mkdir -p ~/south-park-aosp/vendor/extra/overlays/
+          cp -r assets/overlays/SouthParkTheme ~/south-park-aosp/vendor/extra/overlays/
