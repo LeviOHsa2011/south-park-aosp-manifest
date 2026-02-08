@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <manifest>
   <remote name="aosp" fetch="https://android.googlesource.com/" review="android-review.googlesource.com" />
+  
+  <include name="default.xml" />
+
+  <project path="vendor/southpark" name="LeviOHsa2011/south-park-aosp-manifest" remote="github" revision="main" />
+
   <remove-project name="platform/packages/apps/Music" />
   <remove-project name="platform/packages/apps/Calendar" />
-  <remove-project name="platform/packages/apps/Contacts" />
 </manifest>
