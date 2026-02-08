@@ -4,12 +4,19 @@ on: [workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-22.04
-    # Wir geben dem Build mehr Power
     timeout-minutes: 360 
 
     steps:
       - name: Checkout dein Repo
         uses: actions/checkout@v4
+
+      - name: Free Disk Space (The 11/10 Clean)
+        run: |
+          sudo docker image prune -a -f
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /usr/lib/jvm
+          # Zusätzliche Gigabytes freischaufeln
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell /usr/local/lib/node_modules
+          df -h
 
       - name: Install Build Dependencies
         run: |
@@ -21,31 +28,31 @@ jobs:
           mkdir -p ~/bin
           curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
           chmod a+x ~/bin/repo
-          echo "PATH=$PATH:$HOME/bin" >> $GITHUB_ENV
+          echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Sync Full AOSP (Android 14)
         run: |
-          export PATH=$PATH:$HOME/bin
-          repo init -u https://android.googlesource.com/platform/manifest -b android-14.0.0_r1 --depth=1
-          # Wir laden nur das Nötigste für den ersten Build
-          repo sync -c -j$(nproc --all) --no-clone-bundle --no-tags --optimized-fetch --prune
+          # Wir laden NUR arm64 und NUR das Nötigste (-g all,-notdefault,-device,-mips,-x86,-darwin)
+          repo init -u https://android.googlesource.com/platform/manifest -b android-14.0.0_r1 --depth=1 -g all,-notdefault,-device,-mips,-x86,-darwin
+          repo sync -c -j$(nproc --all) --no-clone-bundle --no-tags --optimized-fetch --prune --force-sync
 
-      - name: Inject South Park UI
+      - name: Inject South Park DNA
         run: |
-          # Kopiere deine Farben und Assets in den Quellcode
           mkdir -p vendor/southpark/assets
-          cp -r assets/* vendor/southpark/assets/ || echo "Keine Assets zum Kopieren gefunden"
+          # Falls du die Ordner lokal in deinem Repo hast, kopieren wir sie jetzt ins AOSP-Verzeichnis
+          cp -r assets/* vendor/southpark/assets/ || echo "Keine Assets gefunden"
+          # Hier können wir später deine Kotlin-Patches einfügen
 
       - name: Compile System Image
         run: |
-          export PATH=$PATH:$HOME/bin
           source build/envsetup.sh
-          # aosp_arm64-eng ist das Standard-Ziel für moderne Handys/Emulator
           lunch aosp_arm64-eng
+          # 'make' braucht viel RAM, wir begrenzen die Jobs etwas, um Abstürze zu vermeiden
           make systemimage -j$(nproc --all)
 
       - name: Upload Finished Image
         uses: actions/upload-artifact@v4
         with:
           name: South-Park-OS-Image
-          path: out/target/product/generic_arm64/system.img
+          # Der Pfad kann variieren, wir nutzen Wildcards zur Sicherheit
+          path: out/target/product/*/system.img
